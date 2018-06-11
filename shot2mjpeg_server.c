@@ -1,3 +1,5 @@
+// screenshot to mjpeg for linux
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -6,6 +8,7 @@
 #include "httpd.h"
 #include "httpd_priv.h"
 #include "shot2jpeg.h"
+#include "log.h"
 
 
 struct FileContent {
@@ -20,20 +23,20 @@ struct FileContent read_file(char *name) {
     //Open file
     file = fopen(name, "rb");
     if (!file) {
-        fprintf(stderr, "Unable to open file %s", name);
+        log_error("Unable to open file %s", name);
         return;
     }
 
     //Get file length
     fseek(file, 0, SEEK_END);
     result.length=(ftell(file));
-    printf("file length: %d\n", result.length);
+    log_debug("file length: %d", result.length);
     fseek(file, 0, SEEK_SET);
 
     //Allocate memory
     result.buffer=(char *)malloc((result.length)+1);
     if (!result.buffer) {
-        fprintf(stderr, "Memory error!");
+        log_error("Memory error!");
         fclose(file);
         return;
     }
@@ -64,7 +67,7 @@ void jpeg_handler(httpd *server, httpReq *request) {
     httpdSendHeaders(server, request);
     struct FileContent buffer;
     buffer = read_file("../example.jpeg");
-    printf("buffer length: %d\n", buffer.length);
+    log_debug("buffer length: %d", buffer.length);
     request->response.responseLength += buffer.length;
     _httpd_net_write(request->clientSock, buffer.buffer, buffer.length);
     // free(&buffer); // *** Error in `./http_example_server': double free or corruption (out): 0x00007ffd72cd9580 ***
@@ -72,7 +75,7 @@ void jpeg_handler(httpd *server, httpReq *request) {
 }
 
 void mjpeg_handler(httpd *server, httpReq *request) {
-    printf(">>>>>> mjpeg_handler start\n");
+    log_debug("mjpeg_handler start");
     httpdSetContentType(server, request, "multipart/x-mixed-replace;boundary=\"mjpegstream\"");
     httpdAddHeader(server, request, "Cache-Control: no-store, no-cache, must-revalidate, pre-check=0, post-check=0, max-age=0");
     // httpdAddHeader(server, request, "Content-Type: multipart/x-mixed-replace;boundary=--boundary");
@@ -81,7 +84,7 @@ void mjpeg_handler(httpd *server, httpReq *request) {
     httpdSendHeaders(server, request);
 
     int quality = 75;
-    printf("Quality: %d\n", quality);
+    log_debug("Quality: %d", quality);
 
     struct timeval s, ss;
     struct FileContent buffer;
@@ -94,12 +97,12 @@ void mjpeg_handler(httpd *server, httpReq *request) {
 
     for (int i = 0; 1; i++) {
         gettimeofday(&s, NULL);
-        printf("frame: %04d\n", i);
+        log_debug("frame: %04d", i);
         xcb_image_t *screenshot;
         screenshot = take_screenshot(conn, screen);
         xcb_pixmap_t pixmap = image_to_pixmap(conn, screen, screenshot);
-        printf("screenshot: width: %d, height: %d, size: %d\n", screenshot->width, screenshot->height, screenshot->size);
-        // printf("pixmap: %d\n", pixmap);
+        log_debug("screenshot: width: %d, height: %d, size: %d", screenshot->width, screenshot->height, screenshot->size);
+        log_debug("pixmap: %d", pixmap);
 
         char *bp;
         size_t size;
@@ -113,7 +116,7 @@ void mjpeg_handler(httpd *server, httpReq *request) {
         sprintf(header, "--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n", buffer.length);
         int r;
         r = _httpd_net_write(request->clientSock, header, strlen(header));
-        printf("socket r: %d\n", r);
+        log_debug("socket r: %d", r);
         if (r == 0) {
             r = _httpd_net_write(request->clientSock, buffer.buffer, buffer.length);
         } else {
@@ -124,20 +127,20 @@ void mjpeg_handler(httpd *server, httpReq *request) {
         xcb_free_pixmap(conn, pixmap);
         free(bp);
         free(header);
-        // // printf("buffer: size: %d\n", size);
+        log_debug("buffer: size: %d", size);
         gettimeofday(&ss, NULL);
         long interval = 40 - (((ss.tv_sec - s.tv_sec) * 1000000 + (ss.tv_usec - s.tv_usec))/1000); // ms
         if (interval > 0) {
             nsleep(interval);
-            printf("sleep: %dms\n", interval);
+            log_debug("sleep: %dms", interval);
         }
     }
     free(buffer.buffer);
-    printf(">>>>>> mjpeg_handler end\n");
+    log_debug("mjpeg_handler end");
 }
 
 void sig_ign(int s) {
-    printf("Caught SIGPIPE\n");
+    log_warn("Caught SIGPIPE");
 }
 
 int main(argc, argv)
@@ -147,19 +150,32 @@ int main(argc, argv)
     httpd   *server;
     httpReq *request;
     struct timeval timeout;
-    int result;
+    int result, port = 8080;
+
+    FILE *log_file;
+
+    //Open file
+    log_file = fopen("./server.log", "a");
+    if (!log_file) {
+        fprintf(stderr, "Unable to open file ./server.log");
+        exit(1);
+    }
+    log_set_fp(log_file);
+    log_set_level(LOG_TRACE);
+    // log_set_level(LOG_INFO);
+    log_set_quiet(0);
 
     signal(SIGPIPE, SIG_IGN);
     /*
     ** Create a server and setup our logging
     */
-    server = httpdCreate(NULL, 8080);
+    server = httpdCreate(NULL, port);
     if (server == NULL)
     {
-        perror("Can't create server");
+        log_error("Can't create server at port: %d", port);
         exit(1);
     }
-    httpdSetAccessLog(server, stdout);
+    httpdSetAccessLog(server, file_log);
     httpdSetErrorLog(server, stderr);
 
     /*
@@ -171,24 +187,22 @@ int main(argc, argv)
     /*
     ** Go into our service loop
     */
-    printf("mjpeg server start\n");
+    log_info("mjpeg server start at port: %d", port);
     while (1) {
         timeout.tv_sec = 5;
         timeout.tv_usec = 0;
         request = httpdReadRequest(server, &timeout, &result);
-        if (request == NULL && result == 0)
-        {
+        if (request == NULL && result == 0) {
             /* Timed out. Go do something else if needed */
             continue;
         }
 
-        if (result < 0)
-        {
+        if (result < 0) {
             /* Error occurred */
             continue;
         }
         httpdProcessRequest(server, request);
         httpdEndRequest(server, request);
     }
-    printf("mjpeg server end\n");
+    log_info("mjpeg server end");
 }
