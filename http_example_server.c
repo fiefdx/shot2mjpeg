@@ -42,8 +42,6 @@ struct FileContent {
 
 struct FileContent read_file(char *name) {
     FILE *file;
-    char *buffer;
-    unsigned long fileLen;
     struct FileContent result;
 
     //Open file
@@ -52,31 +50,25 @@ struct FileContent read_file(char *name) {
         fprintf(stderr, "Unable to open file %s", name);
         return;
     }
-    
+
     //Get file length
     fseek(file, 0, SEEK_END);
-    fileLen=(ftell(file));
-    printf("fileLen: %d\n", fileLen);
+    result.length=(ftell(file));
+    printf("file length: %d\n", result.length);
     fseek(file, 0, SEEK_SET);
 
     //Allocate memory
-    buffer=(char *)malloc((fileLen)+1);
-    if (!buffer) {
+    result.buffer=(char *)malloc((result.length)+1);
+    if (!result.buffer) {
         fprintf(stderr, "Memory error!");
         fclose(file);
         return;
     }
 
     //Read file contents into buffer
-    fread(buffer, fileLen, 1, file);
+    fread(result.buffer, result.length, 1, file);
     fclose(file);
 
-    result.length = fileLen;
-    result.buffer = buffer;
-
-    //Do what ever with buffer
-
-    // free(buffer);
     return result;
 }
 
@@ -120,17 +112,17 @@ void mjpeg_handler(httpd *server, httpReq *request) {
     httpdSendHeaders(server, request);
     // httpdSetResponse(server, request, "200 OK");
 
-    struct FileContent buffer, buffer_0;
-    buffer = read_file("../example.jpeg");
+    struct FileContent buffer_0, buffer_1;
+    buffer_1 = read_file("../example_1.jpeg");
     buffer_0 = read_file("../example_0.jpeg");
     // printf("buffer length: %d\n", buffer.length);
     for (int i = 0; i < 100; i++) {
         printf("frame: %04d\n", i);
         char * header = (char *)malloc((150)+1);
         if (i % 2 == 0) {
-            sprintf(header, "\r\n--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\nImage-Id: %d\r\n\r\n", buffer.length, i);
+            sprintf(header, "\r\n--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\nImage-Id: %d\r\n\r\n", buffer_1.length, i);
             _httpd_net_write(request->clientSock, header, strlen(header));
-            _httpd_net_write(request->clientSock, buffer.buffer, buffer.length);
+            _httpd_net_write(request->clientSock, buffer_1.buffer, buffer_1.length);
             // request->response.responseLength += strlen(header);
             // request->response.responseLength += buffer.length;
             _httpd_net_write(request->clientSock, "\r\n", 2);
@@ -159,7 +151,7 @@ void mjpeg_handler(httpd *server, httpReq *request) {
     }
     // httpdPrintf(server, request, "<P>this is a mjpeg page</P>\n");
     // return;
-    free(buffer.buffer);
+    free(buffer_1.buffer);
     free(buffer_0.buffer);
     printf(">>>>>> mjpeg_handler end\n");
 }

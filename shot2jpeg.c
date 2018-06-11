@@ -26,7 +26,7 @@ xcb_pixmap_t image_to_pixmap(xcb_connection_t *conn, xcb_screen_t *screen, xcb_i
 
     xcb_image_put(conn, pixmap, gc, image, 0, 0, 0);
 
-    return pixmap;
+    return pixmap; // remember to free the memory: xcb_free_pixmap(conn, pixmap);
 }
 
 void get_rgba_image_data(xcb_image_t *image, uint8_t *rgba) {

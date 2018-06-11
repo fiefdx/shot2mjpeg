@@ -15,8 +15,6 @@ struct FileContent {
 
 struct FileContent read_file(char *name) {
     FILE *file;
-    char *buffer;
-    unsigned long fileLen;
     struct FileContent result;
 
     //Open file
@@ -25,49 +23,40 @@ struct FileContent read_file(char *name) {
         fprintf(stderr, "Unable to open file %s", name);
         return;
     }
-    
+
     //Get file length
     fseek(file, 0, SEEK_END);
-    fileLen=(ftell(file));
-    printf("fileLen: %d\n", fileLen);
+    result.length=(ftell(file));
+    printf("file length: %d\n", result.length);
     fseek(file, 0, SEEK_SET);
 
     //Allocate memory
-    buffer=(char *)malloc((fileLen)+1);
-    if (!buffer) {
+    result.buffer=(char *)malloc((result.length)+1);
+    if (!result.buffer) {
         fprintf(stderr, "Memory error!");
         fclose(file);
         return;
     }
 
     //Read file contents into buffer
-    fread(buffer, fileLen, 1, file);
+    fread(result.buffer, result.length, 1, file);
     fclose(file);
 
-    result.length = fileLen;
-    result.buffer = buffer;
-
-    //Do what ever with buffer
-
-    // free(buffer);
     return result;
 }
 
 int nsleep(long miliseconds) {
     struct timespec req, rem;
 
-    if(miliseconds > 999)
-    {   
+    if(miliseconds > 999) {
         req.tv_sec = (int)(miliseconds / 1000);                            /* Must be Non-Negative */
         req.tv_nsec = (miliseconds - ((long)req.tv_sec * 1000)) * 1000000; /* Must be in range of 0 to 999999999 */
-    }   
-    else
-    {   
+    } else {
         req.tv_sec = 0;                         /* Must be Non-Negative */
         req.tv_nsec = miliseconds * 1000000;    /* Must be in range of 0 to 999999999 */
-    }   
+    }
 
-    return nanosleep(&req , &rem);
+    return nanosleep(&req, &rem);
 }
 
 void jpeg_handler(httpd *server, httpReq *request) {
@@ -183,8 +172,7 @@ int main(argc, argv)
     ** Go into our service loop
     */
     printf("mjpeg server start\n");
-    while (1)
-    {
+    while (1) {
         timeout.tv_sec = 5;
         timeout.tv_usec = 0;
         request = httpdReadRequest(server, &timeout, &result);
