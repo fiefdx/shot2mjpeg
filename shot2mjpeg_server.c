@@ -9,7 +9,9 @@
 #include "httpd_priv.h"
 #include "shot2jpeg.h"
 #include "log.h"
+#include "config.h"
 
+struct config CONFIG;
 
 struct FileContent {
     unsigned long length;
@@ -24,7 +26,7 @@ struct FileContent read_file(char *name) {
     file = fopen(name, "rb");
     if (!file) {
         log_error("Unable to open file %s", name);
-        return;
+        return result;
     }
 
     //Get file length
@@ -38,7 +40,7 @@ struct FileContent read_file(char *name) {
     if (!result.buffer) {
         log_error("Memory error!");
         fclose(file);
-        return;
+        return result;
     }
 
     //Read file contents into buffer
@@ -83,8 +85,7 @@ void mjpeg_handler(httpd *server, httpReq *request) {
     // httpdAddHeader(server, request, "Connection: close");
     httpdSendHeaders(server, request);
 
-    int quality = 75;
-    log_debug("Quality: %d", quality);
+    log_debug("Quality: %d", CONFIG.quality);
 
     struct timeval s, ss;
     struct FileContent buffer;
@@ -108,12 +109,12 @@ void mjpeg_handler(httpd *server, httpReq *request) {
         size_t size;
         FILE *stream;
         stream = open_memstream(&bp, &size);
-        write_to_jpeg_buffer(stream, quality, screenshot);
+        write_to_jpeg_buffer(stream, CONFIG.quality, screenshot);
         buffer.buffer = bp;
         buffer.length = size;
 
         char *header = (char *)malloc((150)+1);
-        sprintf(header, "--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n", buffer.length);
+        sprintf(header, "--mjpegstream\r\nContent-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n", buffer.length);
         int r;
         r = _httpd_net_write(request->clientSock, header, strlen(header));
         log_debug("socket r: %d", r);
@@ -154,6 +155,8 @@ int main(argc, argv)
 
     FILE *log_file;
 
+    CONFIG = get_config("./configuration.conf");
+
     //Open file
     log_file = fopen("./server.log", "a");
     if (!log_file) {
@@ -169,13 +172,13 @@ int main(argc, argv)
     /*
     ** Create a server and setup our logging
     */
-    server = httpdCreate(NULL, port);
+    server = httpdCreate(NULL, CONFIG.port);
     if (server == NULL)
     {
-        log_error("Can't create server at port: %d", port);
+        log_error("Can't create server at port: %d", CONFIG.port);
         exit(1);
     }
-    httpdSetAccessLog(server, file_log);
+    httpdSetAccessLog(server, stdout);
     httpdSetErrorLog(server, stderr);
 
     /*
@@ -187,7 +190,7 @@ int main(argc, argv)
     /*
     ** Go into our service loop
     */
-    log_info("mjpeg server start at port: %d", port);
+    log_info("mjpeg server start at port: %d, quality: %d", CONFIG.port, CONFIG.quality);
     while (1) {
         timeout.tv_sec = 5;
         timeout.tv_usec = 0;
