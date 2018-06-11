@@ -18,10 +18,25 @@ struct config get_config(char *filename) {
             v_str[strcspn(v_str, "\r\n")] = 0;
             if (strcmp(k_str, "port") == 0) {
                 result.port = (int) strtol(v_str, (char **)NULL, 10);
-                // memcpy(result.port, v_str, strlen(v_str));
             } else if (strcmp(k_str, "quality") == 0) {
                 result.quality = (int) strtol(v_str, (char **)NULL, 10);
-                // memcpy(result.quality, v_str, strlen(v_str));
+            } else if (strcmp(k_str, "fps") == 0) {
+                result.fps = (int) strtol(v_str, (char **)NULL, 10);
+            } else if (strcmp(k_str, "log_level") == 0) {
+                memcpy(result.log_level_key, v_str, strlen(v_str));
+                if (strcmp(v_str, "fatal") == 0) { // LOG_TRACE, LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR, LOG_FATAL 
+                    result.log_level = LOG_FATAL;
+                } else if (strcmp(v_str, "error") == 0) {
+                    result.log_level = LOG_ERROR;
+                } else if (strcmp(v_str, "warn") == 0) {
+                    result.log_level = LOG_WARN;
+                } else if (strcmp(v_str, "info") == 0) {
+                    result.log_level = LOG_INFO;
+                } else if (strcmp(v_str, "debug") == 0) {
+                    result.log_level = LOG_DEBUG;
+                } else {
+                    result.log_level = LOG_TRACE;
+                }
             }
         }
     }

@@ -87,7 +87,7 @@ void mjpeg_handler(httpd *server, httpReq *request) {
 
     log_debug("Quality: %d", CONFIG.quality);
 
-    struct timeval s, ss;
+    struct timeval s, ss, sss;
     struct FileContent buffer;
 
     xcb_connection_t *conn = xcb_connect(NULL, NULL);
@@ -96,9 +96,20 @@ void mjpeg_handler(httpd *server, httpReq *request) {
     xcb_screen_iterator_t iter = xcb_setup_roots_iterator(setup);
     xcb_screen_t *screen = iter.data;
 
-    for (int i = 0; 1; i++) {
-        gettimeofday(&s, NULL);
-        log_debug("frame: %04d", i);
+    int n = 0;
+    float fps;
+    gettimeofday(&s, NULL);
+    while (1) {
+        if (n == 30) {
+            gettimeofday(&ss, NULL);
+            fps = 30.0 * 1000000 / ((ss.tv_sec - s.tv_sec) * 1000000 + (ss.tv_usec - s.tv_usec));
+            log_info("fps: %f", fps);
+            n = 0;
+            gettimeofday(&s, NULL);
+        }
+
+        gettimeofday(&ss, NULL);
+        log_debug("frame: %04d", n);
         xcb_image_t *screenshot;
         screenshot = take_screenshot(conn, screen);
         xcb_pixmap_t pixmap = image_to_pixmap(conn, screen, screenshot);
@@ -129,12 +140,13 @@ void mjpeg_handler(httpd *server, httpReq *request) {
         free(bp);
         free(header);
         log_debug("buffer: size: %d", size);
-        gettimeofday(&ss, NULL);
-        long interval = 40 - (((ss.tv_sec - s.tv_sec) * 1000000 + (ss.tv_usec - s.tv_usec))/1000); // ms
+        gettimeofday(&sss, NULL);
+        long interval = (1000 / CONFIG.fps) - (((sss.tv_sec - ss.tv_sec) * 1000000 + (sss.tv_usec - ss.tv_usec)) / 1000); // ms
         if (interval > 0) {
             nsleep(interval);
             log_debug("sleep: %dms", interval);
         }
+        n++;
     }
     free(buffer.buffer);
     log_debug("mjpeg_handler end");
@@ -164,8 +176,7 @@ int main(argc, argv)
         exit(1);
     }
     log_set_fp(log_file);
-    log_set_level(LOG_TRACE);
-    // log_set_level(LOG_INFO);
+    log_set_level(CONFIG.log_level);
     log_set_quiet(0);
 
     signal(SIGPIPE, SIG_IGN);
@@ -190,7 +201,8 @@ int main(argc, argv)
     /*
     ** Go into our service loop
     */
-    log_info("mjpeg server start at port: %d, quality: %d", CONFIG.port, CONFIG.quality);
+    log_info("mjpeg server start at port: %d, quality: %d, fps: %d, log_level: %s(%d)",
+             CONFIG.port, CONFIG.quality, CONFIG.fps, CONFIG.log_level_key, CONFIG.log_level);
     while (1) {
         timeout.tv_sec = 5;
         timeout.tv_usec = 0;
