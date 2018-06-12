@@ -78,6 +78,16 @@ void get_rgba_image_data4(xcb_image_t *image) {
     }
 }
 
+void get_rgba_image_data5(xcb_image_t *image) {
+    uint8_t *rgba = image->data, tmp;
+    int length = image->height * image->width * 4, i;
+    for (i = 0; i < length; i+=4) {
+        tmp = rgba[i];
+        rgba[i] = rgba[i + 2];
+        rgba[i + 2] = tmp;
+    }
+}
+
 void get_rgb_image_data(xcb_image_t *image, uint8_t *rgb) {
     for (int y = 0; y < image->height; y++) {
         int y_width = y*image->width;
@@ -135,7 +145,7 @@ void write_to_jpeg_buffer(FILE *stream, int quality, xcb_image_t *image) {
     // struct timeval t, tt, ttt, tttt;
     uint8_t *data;
     // gettimeofday(&t, NULL);
-    get_rgba_image_data4(image);
+    get_rgba_image_data5(image);
     data = image->data;
     // gettimeofday(&tt, NULL);
     struct jpeg_compress_struct cinfo;
