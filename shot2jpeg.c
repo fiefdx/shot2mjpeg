@@ -1,5 +1,7 @@
 // screenshot to jpeg for linux
 
+#include <stdio.h>
+#include <sys/time.h>
 #include "shot2jpeg.h"
 
 #define IMG_AT(x, y, i) image->data[(((y_width) + (x)) << 2) + (i)]
@@ -48,6 +50,30 @@ void get_rgba_image_data2(xcb_image_t *image, uint8_t *rgba) {
         for (int x = 0; x < image->width; x++) {
             RGBA_AT(x, y, 0) = IMG_AT(x, y, 2); // r
             RGBA_AT(x, y, 2) = IMG_AT(x, y, 0); // b
+        }
+    }
+}
+
+void get_rgba_image_data3(xcb_image_t *image) {
+    for (int y = 0; y < image->height; y++) {
+        int y_width = y*image->width;
+        for (int x = 0; x < image->width; x++) {
+            IMG_AT(x, y, 0) = IMG_AT(x, y, 0) ^ IMG_AT(x, y, 2); // r
+            IMG_AT(x, y, 2) = IMG_AT(x, y, 2) ^ IMG_AT(x, y, 0); // b
+            IMG_AT(x, y, 0) = IMG_AT(x, y, 0) ^ IMG_AT(x, y, 2);
+        }
+    }
+}
+
+void get_rgba_image_data4(xcb_image_t *image) {
+    uint8_t *rgba = image->data, tmp;
+    int height = image->height, width = image->width, y_width = -width, x, y;
+    for (y = 0; y < height; y++) {
+        y_width += width;
+        for (x = 0; x < width; x++) {
+            tmp = RGBA_AT(x, y, 0);
+            RGBA_AT(x, y, 0) = RGBA_AT(x, y, 2);
+            RGBA_AT(x, y, 2) = tmp;
         }
     }
 }
@@ -106,8 +132,12 @@ void write_to_jpeg(char *filename, int quality, xcb_image_t *image) {
 }
 
 void write_to_jpeg_buffer(FILE *stream, int quality, xcb_image_t *image) {
-    uint8_t data[image->width*image->height*4];
-    get_rgba_image_data2(image, data);
+    // struct timeval t, tt, ttt, tttt;
+    uint8_t *data;
+    // gettimeofday(&t, NULL);
+    get_rgba_image_data4(image);
+    data = image->data;
+    // gettimeofday(&tt, NULL);
     struct jpeg_compress_struct cinfo;
     struct jpeg_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -132,10 +162,15 @@ void write_to_jpeg_buffer(FILE *stream, int quality, xcb_image_t *image) {
 
     row_stride = image->width * 4;
 
+    // gettimeofday(&ttt, NULL);
     while (cinfo.next_scanline < cinfo.image_height) {
         row_pointer[0] = &data[cinfo.next_scanline * row_stride];
         (void) jpeg_write_scanlines(&cinfo, row_pointer, 1);
     }
+    // gettimeofday(&tttt, NULL);
+    // float get_time = ((tt.tv_sec - t.tv_sec) * 1000000 + (tt.tv_usec - t.tv_usec)) / 1000;
+    // float write_time = ((tttt.tv_sec - ttt.tv_sec) * 1000000 + (tttt.tv_usec - ttt.tv_usec)) / 1000;
+    // printf(">>>>>> get_time: %.3f, write_time: %.3fms\n", get_time, write_time);
 
     jpeg_finish_compress(&cinfo);
     fclose(stream);

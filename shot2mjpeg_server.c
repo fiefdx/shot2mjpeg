@@ -87,7 +87,7 @@ void mjpeg_handler(httpd *server, httpReq *request) {
 
     log_debug("Quality: %d", CONFIG.quality);
 
-    struct timeval s, ss, sss;
+    struct timeval s, ss, sss, t, tt, ttt, tttt, ttttt;
     struct FileContent buffer;
 
     xcb_connection_t *conn = xcb_connect(NULL, NULL);
@@ -112,7 +112,9 @@ void mjpeg_handler(httpd *server, httpReq *request) {
         log_debug("frame: %04d", n);
         xcb_image_t *screenshot;
         screenshot = take_screenshot(conn, screen);
+        gettimeofday(&t, NULL);
         xcb_pixmap_t pixmap = image_to_pixmap(conn, screen, screenshot);
+        gettimeofday(&tt, NULL);
         log_debug("screenshot: width: %d, height: %d, size: %d", screenshot->width, screenshot->height, screenshot->size);
         log_debug("pixmap: %d", pixmap);
 
@@ -120,7 +122,9 @@ void mjpeg_handler(httpd *server, httpReq *request) {
         size_t size;
         FILE *stream;
         stream = open_memstream(&bp, &size);
+        gettimeofday(&ttt, NULL);
         write_to_jpeg_buffer(stream, CONFIG.quality, screenshot);
+        gettimeofday(&tttt, NULL);
         buffer.buffer = bp;
         buffer.length = size;
 
@@ -134,6 +138,7 @@ void mjpeg_handler(httpd *server, httpReq *request) {
         } else {
             break;
         }
+        gettimeofday(&ttttt, NULL);
 
         xcb_image_destroy(screenshot);
         xcb_free_pixmap(conn, pixmap);
@@ -141,7 +146,15 @@ void mjpeg_handler(httpd *server, httpReq *request) {
         free(header);
         log_debug("buffer: size: %d", size);
         gettimeofday(&sss, NULL);
-        long interval = (1000 / CONFIG.fps) - (((sss.tv_sec - ss.tv_sec) * 1000000 + (sss.tv_usec - ss.tv_usec)) / 1000); // ms
+        float use_time = ((sss.tv_sec - ss.tv_sec) * 1000000 + (sss.tv_usec - ss.tv_usec)) / 1000;
+        float shot_time = ((t.tv_sec - ss.tv_sec) * 1000000 + (t.tv_usec - ss.tv_usec)) / 1000;
+        float get_image_time = ((tt.tv_sec - t.tv_sec) * 1000000 + (tt.tv_usec - t.tv_usec)) / 1000;
+        float open_mem_file_time = ((ttt.tv_sec - tt.tv_sec) * 1000000 + (ttt.tv_usec - tt.tv_usec)) / 1000;
+        float write_buffer_time = ((tttt.tv_sec - ttt.tv_sec) * 1000000 + (tttt.tv_usec - ttt.tv_usec)) / 1000;
+        float send_image_time = ((ttttt.tv_sec - tttt.tv_sec) * 1000000 + (ttttt.tv_usec - tttt.tv_usec)) / 1000;
+        log_debug("use time: %.3f, shot: %.3f, get: %.3f, open: %.3f, write: %.3f, send: %.3f",
+                  use_time, shot_time, get_image_time, open_mem_file_time, write_buffer_time, send_image_time);
+        long interval = (1000 / CONFIG.fps) - use_time; // ms
         if (interval > 0) {
             nsleep(interval);
             log_debug("sleep: %dms", interval);
