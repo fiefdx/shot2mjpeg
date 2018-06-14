@@ -17,7 +17,7 @@ void write_to_jpeg_buffer(FILE *stream, int quality, xcb_image_t *image);
 
 static J_COLOR_SPACE getJCS_EXT_RGBA(void) {
 #ifdef JCS_ALPHA_EXTENSIONS
-    return JCS_EXT_RGBA;
+    return JCS_EXT_BGRA; // JCS_EXT_RGBA;
 #endif
   	return JCS_UNKNOWN;
 }

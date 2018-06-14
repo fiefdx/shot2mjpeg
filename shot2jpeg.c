@@ -9,6 +9,7 @@
 #define RGB_AT(x, y, i) rgb[((y_width) + (x)) * 3 + (i)]
 
 xcb_image_t *take_screenshot(xcb_connection_t *conn, xcb_screen_t *screen) {
+    // enum xcb_image_format_t { XCB_IMAGE_FORMAT_XY_BITMAP = 0, XCB_IMAGE_FORMAT_XY_PIXMAP = 1, XCB_IMAGE_FORMAT_Z_PIXMAP = 2 }
     return xcb_image_get(conn,
         screen->root,
         0, 0,
@@ -145,7 +146,6 @@ void write_to_jpeg_buffer(FILE *stream, int quality, xcb_image_t *image) {
     // struct timeval t, tt, ttt, tttt;
     uint8_t *data;
     // gettimeofday(&t, NULL);
-    get_rgba_image_data5(image);
     data = image->data;
     // gettimeofday(&tt, NULL);
     struct jpeg_compress_struct cinfo;
